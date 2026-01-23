@@ -3,10 +3,9 @@ import Exa from "exa-js";
 
 export const maxDuration = 60;
 
-const exa = new Exa(process.env.EXA_API_KEY as string);
-
 export async function POST(req: NextRequest) {
   try {
+    const exa = new Exa(process.env.EXA_API_KEY as string);
     const { idea } = await req.json();
 
     if (!idea || typeof idea !== 'string' || idea.trim().length < 3) {
