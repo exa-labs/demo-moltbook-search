@@ -22,17 +22,17 @@ const reckless = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Company Researcher",
-  description: "Instantly get detailed research insights and know everything about any company inside out.",
+  title: "Search at Tip of the Tongue",
+  description: "Voice-powered search that finds what you're looking for, even when it's on the tip of your tongue.",
   openGraph: {
-    title: 'Company Researcher',
-    description: 'Instantly get detailed research insights and know everything about any company inside out.',
+    title: 'Search at Tip of the Tongue',
+    description: 'Voice-powered search that finds what you\'re looking for, even when it\'s on the tip of your tongue.',
     images: ['https://companyresearcher.exa.ai/opengraph-image.jpg'],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Company Researcher',
-    description: 'Instantly get detailed research insights and know everything about any company inside out.',
+    title: 'Search at Tip of the Tongue',
+    description: 'Voice-powered search that finds what you\'re looking for, even when it\'s on the tip of your tongue.',
     images: ['https://companyresearcher.exa.ai/opengraph-image.jpg'],
   },
 };

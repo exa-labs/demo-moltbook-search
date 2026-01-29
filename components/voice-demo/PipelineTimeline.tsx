@@ -150,7 +150,7 @@ export function PipelineTimeline({ timestamps, className }: PipelineTimelineProp
         </span>
         {timestamps.speechEnd && timestamps.ttsDone && (
           <span className="font-mono text-xs tabular-nums text-exa-gray-500">
-            {Math.round(timestamps.ttsDone - timestamps.speechEnd)}ms total
+            {((timestamps.ttsDone - timestamps.speechEnd) / 1000).toFixed(1)}s voice → answer
           </span>
         )}
       </div>
@@ -188,9 +188,7 @@ export function PipelineTimeline({ timestamps, className }: PipelineTimelineProp
                         transform: "translate(-50%, -50%)",
                       }}
                     >
-                      {stage.durationMs >= 1000
-                        ? `${(stage.durationMs / 1000).toFixed(1)}s`
-                        : `${Math.round(stage.durationMs)}ms`}
+                      {(stage.durationMs / 1000).toFixed(1)}s
                     </span>
                   )}
                 </div>
@@ -198,9 +196,7 @@ export function PipelineTimeline({ timestamps, className }: PipelineTimelineProp
                 {/* Duration label */}
                 <span className="text-[10px] font-mono tabular-nums text-exa-gray-500 w-14 text-right shrink-0">
                   {stage.completed
-                    ? stage.durationMs >= 1000
-                      ? `${(stage.durationMs / 1000).toFixed(1)}s`
-                      : `${Math.round(stage.durationMs)}ms`
+                    ? `${(stage.durationMs / 1000).toFixed(1)}s`
                     : "..."}
                 </span>
               </div>

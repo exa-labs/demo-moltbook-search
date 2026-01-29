@@ -55,11 +55,15 @@ function useDebounce<T>(value: T, delay: number): T {
 // Parse SSE stream from text-to-speech-stream endpoint
 async function consumeStreamingTTS(
   response: Response,
-  onTextChunk: (chunk: string) => void,
-  onTextDone: (fullText: string, citations: number[]) => void,
-  onAudioChunk: (base64: string) => void,
-  onDone: () => void,
-  onError: (error: string) => void,
+  callbacks: {
+    onLLMStart?: () => void;
+    onSearchResults?: (results: SearchResult[], optimizedQuery?: string) => void;
+    onTextChunk: (chunk: string) => void;
+    onTextDone: (fullText: string, citations: number[]) => void;
+    onAudioChunk: (base64: string) => void;
+    onDone: () => void;
+    onError: (error: string) => void;
+  },
 ) {
   const reader = response.body?.getReader();
   if (!reader) throw new Error("No response body");
@@ -82,20 +86,26 @@ async function consumeStreamingTTS(
       } else if (line.startsWith("data: ")) {
         const data = JSON.parse(line.slice(6));
         switch (currentEvent) {
+          case "llmStart":
+            callbacks.onLLMStart?.();
+            break;
+          case "searchResults":
+            callbacks.onSearchResults?.(data.results, data.optimizedQuery);
+            break;
           case "text":
-            onTextChunk(data.chunk);
+            callbacks.onTextChunk(data.chunk);
             break;
           case "textDone":
-            onTextDone(data.fullText, data.citations || []);
+            callbacks.onTextDone(data.fullText, data.citations || []);
             break;
           case "audio":
-            onAudioChunk(data.chunk);
+            callbacks.onAudioChunk(data.chunk);
             break;
           case "done":
-            onDone();
+            callbacks.onDone();
             break;
           case "error":
-            onError(data.error);
+            callbacks.onError(data.error);
             break;
         }
       }
@@ -118,28 +128,15 @@ export default function VoiceDemoHome() {
   const [optimizedQuery, setOptimizedQuery] = useState<string>("");
   const [timestamps, setTimestamps] = useState<PipelineTimestamps>(EMPTY_TIMESTAMPS);
   const timestampsRef = useRef<PipelineTimestamps>(EMPTY_TIMESTAMPS);
-  const [liveElapsedMs, setLiveElapsedMs] = useState(0);
-
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const speculativeSearchRef = useRef<AbortController | null>(null);
+  const speculativeResultsRef = useRef<SearchResult[] | null>(null);
   const lastSearchedQuery = useRef<string>("");
 
   const updateTimestamp = useCallback((key: keyof PipelineTimestamps, value: number) => {
     timestampsRef.current = { ...timestampsRef.current, [key]: value };
     setTimestamps(prev => ({ ...prev, [key]: value }));
   }, []);
-
-  // Live elapsed timer - runs until TTS generation finishes
-  useEffect(() => {
-    if (timestamps.speechStart && !timestamps.ttsDone && state !== "idle" && state !== "done") {
-      const interval = setInterval(() => {
-        setLiveElapsedMs(Date.now() - timestamps.speechStart!);
-      }, 16);
-      return () => clearInterval(interval);
-    } else if (timestamps.speechStart && timestamps.ttsDone) {
-      setLiveElapsedMs(timestamps.ttsDone - timestamps.speechStart);
-    }
-  }, [timestamps.speechStart, timestamps.ttsDone, state]);
 
   // Debounce live transcript for speculative search (200ms)
   const debouncedTranscript = useDebounce(liveTranscript, 200);
@@ -189,6 +186,7 @@ export default function VoiceDemoHome() {
           const data = await response.json();
           if (state === "recording") {
             setSpeculativeResults(data.results);
+            speculativeResultsRef.current = data.results;
             if (data.optimizedQuery) {
               setOptimizedQuery(data.optimizedQuery);
             }
@@ -238,7 +236,7 @@ export default function VoiceDemoHome() {
     const freshTimestamps = { ...EMPTY_TIMESTAMPS, speechStart: Date.now() };
     timestampsRef.current = freshTimestamps;
     setTimestamps(freshTimestamps);
-    setLiveElapsedMs(0);
+
 
     setState("recording");
     setError(null);
@@ -246,6 +244,7 @@ export default function VoiceDemoHome() {
     setLiveTranscript("");
     setSearchResults(null);
     setSpeculativeResults(null);
+    speculativeResultsRef.current = null;
     setResultsTab("fast");
     setSpokenText("");
     setCitations([]);
@@ -272,18 +271,19 @@ export default function VoiceDemoHome() {
     setState("idle");
   }, []);
 
-  // Shared streaming TTS logic: streams text + audio from search results
+  // Shared streaming TTS logic: sends query + fast results to the streaming endpoint,
+  // which does content search server-side, then LLM + TTS — all in one round trip.
   const runStreamingTTS = useCallback(
-    async (query: string, results: SearchResult[]) => {
-      setState("speaking");
+    async (query: string, fastResults: SearchResult[]) => {
+      setState("searching");
       setSpokenText("");
 
-      updateTimestamp("llmStart", Date.now());
+      updateTimestamp("contentSearchStart", Date.now());
 
       const ttsResponse = await fetch("/api/text-to-speech-stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, results }),
+        body: JSON.stringify({ query, fastResults }),
       });
 
       if (!ttsResponse.ok) {
@@ -292,21 +292,34 @@ export default function VoiceDemoHome() {
 
       const audioChunks: Uint8Array[] = [];
 
-      await consumeStreamingTTS(
-        ttsResponse,
+      await consumeStreamingTTS(ttsResponse, {
+        // onLLMStart: LLM generation has begun (may use fast results or content results)
+        onLLMStart: () => {
+          updateTimestamp("llmStart", Date.now());
+        },
+        // onSearchResults: content search completed on the server (may arrive during or after LLM)
+        onSearchResults: (results: SearchResult[], optimizedQ?: string) => {
+          updateTimestamp("contentSearchEnd", Date.now());
+          setSearchResults(results);
+          setResultsTab("content");
+          if (optimizedQ) {
+            setOptimizedQuery(optimizedQ);
+          }
+        },
         // onTextChunk: show text progressively
-        (chunk) => {
+        onTextChunk: (chunk: string) => {
+          setState("speaking");
           setSpokenText((prev) => prev + chunk);
         },
         // onTextDone: LLM text generation complete, TTS starts
-        (_fullText, citationIds) => {
+        onTextDone: (_fullText: string, citationIds: number[]) => {
           const now = Date.now();
           updateTimestamp("llmDone", now);
           updateTimestamp("ttsStart", now);
           setCitations(citationIds);
         },
         // onAudioChunk: collect audio data
-        (base64) => {
+        onAudioChunk: (base64: string) => {
           const binary = atob(base64);
           const bytes = new Uint8Array(binary.length);
           for (let i = 0; i < binary.length; i++) {
@@ -315,7 +328,7 @@ export default function VoiceDemoHome() {
           audioChunks.push(bytes);
         },
         // onDone: TTS generation complete, assemble and play audio
-        () => {
+        onDone: () => {
           updateTimestamp("ttsDone", Date.now());
 
           const totalLength = audioChunks.reduce((acc, c) => acc + c.length, 0);
@@ -347,10 +360,10 @@ export default function VoiceDemoHome() {
           audio.play();
         },
         // onError
-        (errorMsg) => {
+        onError: (errorMsg: string) => {
           throw new Error(errorMsg);
-        }
-      );
+        },
+      });
     },
     [updateTimestamp]
   );
@@ -379,36 +392,10 @@ export default function VoiceDemoHome() {
       setTranscript(finalTranscript);
 
       try {
-        setState("searching");
-
-        updateTimestamp("contentSearchStart", Date.now());
-
-        const searchResponse = await fetch("/api/voice-search", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            query: finalTranscript,
-            mode: "fast",
-            numResults: 10,
-            withContents: true,
-          }),
-        });
-
-        if (!searchResponse.ok) {
-          throw new Error("Search failed");
-        }
-
-        const searchData = await searchResponse.json();
-        updateTimestamp("contentSearchEnd", Date.now());
-
-        setSearchResults(searchData.results);
-        setResultsTab("content");
-        if (searchData.optimizedQuery) {
-          setOptimizedQuery(searchData.optimizedQuery);
-        }
-
-        // Stream Gemini text + ElevenLabs audio
-        await runStreamingTTS(finalTranscript, searchData.results);
+        // Send fast results to the streaming endpoint, which does content search
+        // + LLM + TTS all server-side in a single round trip
+        const fastResults = speculativeResultsRef.current || [];
+        await runStreamingTTS(finalTranscript, fastResults);
       } catch (err) {
         setError(err instanceof Error ? err.message : "An error occurred");
         setState("idle");
@@ -434,6 +421,7 @@ export default function VoiceDemoHome() {
     setTranscript(query);
     setSearchResults(null);
     setSpeculativeResults(null);
+    speculativeResultsRef.current = null;
     setResultsTab("content");
     setSpokenText("");
     setCitations([]);
@@ -444,41 +432,14 @@ export default function VoiceDemoHome() {
       ...EMPTY_TIMESTAMPS,
       speechStart: now,
       speechEnd: now,
-      contentSearchStart: now,
     };
     timestampsRef.current = freshTimestamps;
     setTimestamps(freshTimestamps);
-    setLiveElapsedMs(0);
+
 
     try {
-      // Single search with contents
-      setState("searching");
-      const searchResponse = await fetch("/api/voice-search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query,
-          mode: "fast",
-          numResults: 10,
-          withContents: true,
-        }),
-      });
-
-      if (!searchResponse.ok) {
-        throw new Error("Search failed");
-      }
-
-      const searchData = await searchResponse.json();
-
-      updateTimestamp("contentSearchEnd", Date.now());
-
-      setSearchResults(searchData.results);
-      if (searchData.optimizedQuery) {
-        setOptimizedQuery(searchData.optimizedQuery);
-      }
-
-      // Stream Gemini text + ElevenLabs audio
-      await runStreamingTTS(query, searchData.results);
+      // Streaming endpoint handles content search + LLM + TTS
+      await runStreamingTTS(query, []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
       setState("idle");
@@ -495,7 +456,7 @@ export default function VoiceDemoHome() {
       <div className="border-b border-exa-gray-300 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
         <div className="mx-auto max-w-7xl px-6 py-4 flex items-center gap-3">
           <h1 className="font-arizona text-xl tracking-tight text-exa-black">
-            Exa Voice Search
+            Search at Tip of the Tongue
           </h1>
           <span className="rounded-full bg-exa-blue/10 px-2.5 py-0.5 text-xs font-medium text-exa-blue">
             Beta
@@ -675,11 +636,6 @@ export default function VoiceDemoHome() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs text-exa-gray-600 font-medium uppercase tracking-wide">Query Builder</span>
-                {timestamps.speechStart && (
-                  <span className="font-mono text-sm tabular-nums text-exa-blue font-medium">
-                    {(liveElapsedMs / 1000).toFixed(2)}s
-                  </span>
-                )}
               </div>
               <QueryTypeWriter
                 query={optimizedQuery || liveTranscript || transcript || ""}

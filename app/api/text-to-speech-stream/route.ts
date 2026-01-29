@@ -1,15 +1,25 @@
 import { NextRequest } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import Exa from "exa-js";
+import { analyzeAndOptimizeQuery } from "@/lib/query-optimizer";
 
 export const maxDuration = 60;
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
+let _exa: Exa | null = null;
+function getExa() {
+  if (!_exa) _exa = new Exa(process.env.EXA_API_KEY as string);
+  return _exa;
+}
+
 interface SearchResult {
   title: string;
   url: string;
   text?: string;
+  image?: string | null;
   publishedDate?: string | null;
+  score?: number | null;
 }
 
 function getDomain(url: string): string {
@@ -31,14 +41,14 @@ function sseEvent(event: string, data: Record<string, unknown>): string {
 }
 
 export async function POST(req: NextRequest) {
-  const { query, results } = (await req.json()) as {
+  const { query, fastResults } = (await req.json()) as {
     query: string;
-    results: SearchResult[];
+    fastResults?: SearchResult[];
   };
 
-  if (!query || !results || !Array.isArray(results)) {
+  if (!query) {
     return new Response(
-      JSON.stringify({ error: "Query and results are required" }),
+      JSON.stringify({ error: "Query is required" }),
       { status: 400, headers: { "Content-Type": "application/json" } }
     );
   }
@@ -48,10 +58,75 @@ export async function POST(req: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        // --- Stage 1: Generate Gemini summary (structured JSON for grounding) ---
-        const topResults = results.slice(0, 5);
+        // Analyze query (synchronous — available immediately)
+        const queryConfig = analyzeAndOptimizeQuery(query);
+        const optimizedQuery = queryConfig.query;
 
-        // Format sources with domain/url/date for better grounding
+        // Build Exa search options
+        const searchType = queryConfig.useAutoprompt ? "auto" : "keyword";
+        const baseOptions: Record<string, unknown> = {
+          type: searchType,
+          numResults: 10,
+        };
+        if (queryConfig.startPublishedDate) baseOptions.startPublishedDate = queryConfig.startPublishedDate;
+        if (queryConfig.endPublishedDate) baseOptions.endPublishedDate = queryConfig.endPublishedDate;
+        if (queryConfig.category === "news") baseOptions.category = "news";
+        else if (queryConfig.category === "company") baseOptions.category = "company";
+        else if (queryConfig.category === "research") baseOptions.category = "research paper";
+        else if (queryConfig.category === "github") baseOptions.category = "github";
+        else if (queryConfig.category === "tweet") baseOptions.category = "tweet";
+
+        const textOptions: { maxCharacters: number; maxAgeHours?: number } = { maxCharacters: 1000 };
+        if (queryConfig.needsLiveCrawl) textOptions.maxAgeHours = 0;
+
+        // --- Start content search in background (don't await yet) ---
+        const contentSearchPromise = (async (): Promise<SearchResult[]> => {
+          try {
+            const searchResult = await getExa().searchAndContents(queryConfig.query, {
+              ...baseOptions,
+              text: textOptions,
+              ...(queryConfig.needsLiveCrawl ? { livecrawl: "always" as const } : {}),
+            });
+            return searchResult.results.map((r) => ({
+              title: r.title || "Untitled",
+              url: r.url,
+              text: r.text || "",
+              image: r.image || null,
+              publishedDate: r.publishedDate || null,
+              score: r.score || null,
+            }));
+          } catch (err) {
+            console.warn("Content search failed:", err);
+            return [];
+          }
+        })();
+
+        // --- Decide LLM input: use fast results only if they have text content ---
+        // Fast results from speculative search are title-only (no excerpts),
+        // which produces poor LLM output. Only skip content search if fast
+        // results actually contain text.
+        const hasFastResultsWithContent = fastResults && fastResults.length > 0 &&
+          fastResults.some(r => r.text && r.text.trim());
+        let resultsForLLM: SearchResult[];
+
+        if (hasFastResultsWithContent) {
+          // Fast results have text content — start LLM immediately
+          // Content search continues in background for the results table
+          resultsForLLM = fastResults;
+          controller.enqueue(encoder.encode(sseEvent("llmStart", { source: "fast" })));
+        } else {
+          // Fast results are title-only or missing — wait for content search
+          const contentResults = await contentSearchPromise;
+          controller.enqueue(encoder.encode(
+            sseEvent("searchResults", { results: contentResults, optimizedQuery })
+          ));
+          resultsForLLM = contentResults;
+          controller.enqueue(encoder.encode(sseEvent("llmStart", { source: "content" })));
+        }
+
+        // --- Stage 2: Generate Gemini summary ---
+        const topResults = resultsForLLM.slice(0, 5);
+
         const sources = topResults.map((r, i) => {
           const domain = getDomain(r.url || "");
           return `[${i + 1}] title: ${r.title || "Untitled"}
@@ -127,7 +202,6 @@ Return STRICT JSON only (no markdown, no extra text).`;
               citations = Array.isArray(parsed.citations) ? parsed.citations : [];
             }
           } catch {
-            // If JSON parsing fails, use raw text as spoken output
             spokenText = fullRawResponse.replace(/```json|```/g, "").trim();
           }
         }
@@ -149,7 +223,17 @@ Return STRICT JSON only (no markdown, no extra text).`;
           encoder.encode(sseEvent("textDone", { fullText: spokenText, citations }))
         );
 
-        // --- Stage 2: Stream ElevenLabs TTS audio ---
+        // If LLM ran with fast results (had content), now await content search for the results table
+        if (hasFastResultsWithContent) {
+          const contentResults = await contentSearchPromise;
+          if (contentResults.length > 0) {
+            controller.enqueue(encoder.encode(
+              sseEvent("searchResults", { results: contentResults, optimizedQuery })
+            ));
+          }
+        }
+
+        // --- Stage 3: Stream ElevenLabs TTS audio ---
         const ttsResponse = await fetch(
           "https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM/stream",
           {
