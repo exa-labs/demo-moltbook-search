@@ -30,42 +30,42 @@ export function analyzeAndOptimizeQuery(rawQuery: string): QueryConfig {
     }
   }
 
-  // COMPANY
+  // COMPANY (only if not already categorized as news — news takes priority for time-sensitive queries)
   const companyPatterns = [
     /\b(company|companies|startup|startups|business|businesses|firm|firms)\b/,
     /\b(founded|funding|raised|valuation|ipo|acquisition)\b/,
     /\bwho (is|are) (building|making|creating|working on)\b/,
   ];
-  if (companyPatterns.some(p => p.test(q))) {
+  if (!config.category && companyPatterns.some(p => p.test(q))) {
     config.category = "company";
     config.useAutoprompt = true;
   }
 
-  // RESEARCH / ACADEMIC
+  // RESEARCH / ACADEMIC (only if not already categorized)
   const researchPatterns = [
     /\b(research|paper|study|academic|scientific|journal|arxiv)\b/,
     /\b(how does|how do|explain|what is the)\b.*\b(work|algorithm|method|technique)\b/,
   ];
-  if (researchPatterns.some(p => p.test(q))) {
+  if (!config.category && researchPatterns.some(p => p.test(q))) {
     config.category = "research";
     config.useAutoprompt = true;
   }
 
-  // GITHUB
+  // GITHUB (only if not already categorized)
   const githubPatterns = [
     /\b(github|repo|repository|open source|code|library|framework|package)\b/,
     /\b(implementation|example|tutorial|sample)\b/,
   ];
-  if (githubPatterns.some(p => p.test(q))) {
+  if (!config.category && githubPatterns.some(p => p.test(q))) {
     config.category = "github";
   }
 
-  // TWITTER/X
+  // TWITTER/X (only if not already categorized)
   const tweetPatterns = [
     /\b(twitter|tweet|x\.com|people (saying|think|talking))\b/,
     /\bwhat (do|are) people\b/,
   ];
-  if (tweetPatterns.some(p => p.test(q))) {
+  if (!config.category && tweetPatterns.some(p => p.test(q))) {
     config.category = "tweet";
   }
 

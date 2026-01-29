@@ -32,7 +32,7 @@ type DemoState =
 const EXAMPLE_QUERIES = [
   "Tell me about the latest AI startup announcements this week?",
   "How is the Meta's quarter report looking?",
-  "What are the most recent announcements from Exa.ai?",
+  "What are the most recent announcements from NVIDIA?",
 ];
 
 // Debounce hook for speculative search
