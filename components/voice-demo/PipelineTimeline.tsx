@@ -150,7 +150,7 @@ export function PipelineTimeline({ timestamps, className }: PipelineTimelineProp
         </span>
         {timestamps.speechEnd && timestamps.ttsDone && (
           <span className="font-mono text-xs tabular-nums text-exa-gray-500">
-            {((timestamps.ttsDone - timestamps.speechEnd) / 1000).toFixed(1)}s voice → answer
+            {((timestamps.ttsDone - timestamps.speechEnd) / 1000).toFixed(1)}s question → answer
           </span>
         )}
       </div>
