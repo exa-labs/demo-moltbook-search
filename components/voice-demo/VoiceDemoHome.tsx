@@ -311,15 +311,16 @@ export default function VoiceDemoHome() {
           setState("speaking");
           setSpokenText((prev) => prev + chunk);
         },
-        // onTextDone: LLM text generation complete, TTS starts
+        // onTextDone: LLM text generation complete
         onTextDone: (_fullText: string, citationIds: number[]) => {
-          const now = Date.now();
-          updateTimestamp("llmDone", now);
-          updateTimestamp("ttsStart", now);
+          updateTimestamp("llmDone", Date.now());
           setCitations(citationIds);
         },
-        // onAudioChunk: collect audio data
+        // onAudioChunk: collect audio data (first chunk marks TTS start)
         onAudioChunk: (base64: string) => {
+          if (!timestampsRef.current.ttsStart) {
+            updateTimestamp("ttsStart", Date.now());
+          }
           const binary = atob(base64);
           const bytes = new Uint8Array(binary.length);
           for (let i = 0; i < binary.length; i++) {
