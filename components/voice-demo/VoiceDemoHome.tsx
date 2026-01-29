@@ -29,9 +29,9 @@ type DemoState =
   | "done";
 
 const EXAMPLE_QUERIES = [
-  "What are the latest AI announcements this week?",
-  "What's the weather in San Francisco right now?",
-  "What are the most recent announcements from ElevenLabs?",
+  "Tell me about the latest AI startup announcements this week?",
+  "How is the Meta's quarter report looking?",
+  "What are the most recent announcements from Exa.ai?",
 ];
 
 // Debounce hook for speculative search
@@ -49,6 +49,57 @@ function useDebounce<T>(value: T, delay: number): T {
   }, [value, delay]);
 
   return debouncedValue;
+}
+
+// Parse SSE stream from text-to-speech-stream endpoint
+async function consumeStreamingTTS(
+  response: Response,
+  onTextChunk: (chunk: string) => void,
+  onTextDone: (fullText: string) => void,
+  onAudioChunk: (base64: string) => void,
+  onDone: () => void,
+  onError: (error: string) => void,
+) {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("No response body");
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let currentEvent = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      if (line.startsWith("event: ")) {
+        currentEvent = line.slice(7).trim();
+      } else if (line.startsWith("data: ")) {
+        const data = JSON.parse(line.slice(6));
+        switch (currentEvent) {
+          case "text":
+            onTextChunk(data.chunk);
+            break;
+          case "textDone":
+            onTextDone(data.fullText);
+            break;
+          case "audio":
+            onAudioChunk(data.chunk);
+            break;
+          case "done":
+            onDone();
+            break;
+          case "error":
+            onError(data.error);
+            break;
+        }
+      }
+    }
+  }
 }
 
 export default function VoiceDemoHome() {
@@ -106,7 +157,9 @@ export default function VoiceDemoHome() {
 
     const query = debouncedTranscript.trim();
 
-    if (query === lastSearchedQuery.current || query.length < 3) {
+    // Wait for at least ~20 chars (~3-4 words) before speculative searching
+    // to ensure meaningful queries that return relevant results
+    if (query === lastSearchedQuery.current || query.length < 20) {
       return;
     }
 
@@ -128,7 +181,7 @@ export default function VoiceDemoHome() {
           body: JSON.stringify({
             query,
             mode: "fast",
-            numResults: 5,
+            numResults: 8,
             withContents: false, // Fast - no text snippets needed for preview
           }),
           signal: controller.signal,
@@ -207,6 +260,80 @@ export default function VoiceDemoHome() {
     setState("idle");
   }, []);
 
+  // Shared streaming TTS logic: streams text + audio from search results
+  const runStreamingTTS = useCallback(
+    async (query: string, results: SearchResult[]) => {
+      setState("speaking");
+      setSpokenText("");
+
+      const ttsResponse = await fetch("/api/text-to-speech-stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, results }),
+      });
+
+      if (!ttsResponse.ok) {
+        throw new Error("Text-to-speech failed");
+      }
+
+      const audioChunks: Uint8Array[] = [];
+
+      await consumeStreamingTTS(
+        ttsResponse,
+        // onTextChunk: show text progressively
+        (chunk) => {
+          setSpokenText((prev) => prev + chunk);
+        },
+        // onTextDone
+        (_fullText) => {
+          // Text is already assembled from chunks
+        },
+        // onAudioChunk: collect audio data
+        (base64) => {
+          const binary = atob(base64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i);
+          }
+          audioChunks.push(bytes);
+        },
+        // onDone: assemble and play audio
+        () => {
+          const totalLength = audioChunks.reduce((acc, c) => acc + c.length, 0);
+          const combined = new Uint8Array(totalLength);
+          let offset = 0;
+          for (const chunk of audioChunks) {
+            combined.set(chunk, offset);
+            offset += chunk.length;
+          }
+
+          const audioBlob = new Blob([combined], { type: "audio/mpeg" });
+          const audioUrl = URL.createObjectURL(audioBlob);
+          const audio = new Audio(audioUrl);
+          audioRef.current = audio;
+
+          audio.onplay = () => setIsSpeaking(true);
+          audio.onended = () => {
+            setIsSpeaking(false);
+            setState("done");
+            URL.revokeObjectURL(audioUrl);
+          };
+          audio.onerror = () => {
+            setIsSpeaking(false);
+            setState("done");
+          };
+
+          audio.play();
+        },
+        // onError
+        (errorMsg) => {
+          throw new Error(errorMsg);
+        }
+      );
+    },
+    []
+  );
+
   const handleRecordingStop = useCallback(
     async (event: { transcript: string }) => {
       const finalTranscript = event.transcript.trim();
@@ -225,97 +352,35 @@ export default function VoiceDemoHome() {
       try {
         setState("searching");
 
-        // STAGE 1: Fast search (no contents) - display results instantly
-        const fastSearchResponse = await fetch("/api/voice-search", {
+        // Single search with contents - skip redundant fast search
+        // since we already have speculative results showing
+        const searchResponse = await fetch("/api/voice-search", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             query: finalTranscript,
             mode: "fast",
             numResults: 10,
-            withContents: false, // Fast - just titles and URLs
+            withContents: true,
           }),
         });
 
-        if (!fastSearchResponse.ok) {
+        if (!searchResponse.ok) {
           throw new Error("Search failed");
         }
 
-        const fastSearchData = await fastSearchResponse.json();
-        setSearchResults(fastSearchData.results);
+        const searchData = await searchResponse.json();
+        setSearchResults(searchData.results);
         setSpeculativeResults(null);
 
-        // STAGE 2: Fetch with contents for TTS (in parallel with display)
-        setState("speaking");
-
-        // Fetch full results with text snippets for TTS
-        const [fullSearchResponse, _] = await Promise.all([
-          fetch("/api/voice-search", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              query: finalTranscript,
-              mode: "fast",
-              numResults: 10,
-              withContents: true, // Get text for TTS
-            }),
-          }),
-          // Small delay to let UI render first
-          new Promise(resolve => setTimeout(resolve, 50)),
-        ]);
-
-        if (!fullSearchResponse.ok) {
-          throw new Error("Failed to fetch content");
-        }
-
-        const fullSearchData = await fullSearchResponse.json();
-
-        // Update results with text snippets
-        setSearchResults(fullSearchData.results);
-
-        // Generate TTS with full content
-        const ttsResponse = await fetch("/api/text-to-speech", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            query: finalTranscript,
-            results: fullSearchData.results,
-          }),
-        });
-
-        if (!ttsResponse.ok) {
-          throw new Error("Text-to-speech failed");
-        }
-
-        const ttsData = await ttsResponse.json();
-        setSpokenText(ttsData.text);
-
-        const audioBlob = new Blob(
-          [Uint8Array.from(atob(ttsData.audio), (c) => c.charCodeAt(0))],
-          { type: ttsData.contentType }
-        );
-        const audioUrl = URL.createObjectURL(audioBlob);
-        const audio = new Audio(audioUrl);
-        audioRef.current = audio;
-
-        audio.onplay = () => setIsSpeaking(true);
-        audio.onended = () => {
-          setIsSpeaking(false);
-          setState("done");
-          URL.revokeObjectURL(audioUrl);
-        };
-        audio.onerror = () => {
-          setIsSpeaking(false);
-          setState("done");
-        };
-
-        await audio.play();
+        // Stream Gemini text + ElevenLabs audio
+        await runStreamingTTS(finalTranscript, searchData.results);
       } catch (err) {
         setError(err instanceof Error ? err.message : "An error occurred");
         setState("idle");
       }
     },
-    []
+    [runStreamingTTS]
   );
 
   const handleStopSpeaking = useCallback(() => {
@@ -335,30 +400,9 @@ export default function VoiceDemoHome() {
     setSpokenText("");
 
     try {
-      // STAGE 1: Fast search - display results instantly
+      // Single search with contents
       setState("searching");
-      const fastSearchResponse = await fetch("/api/voice-search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query,
-          mode: "fast",
-          numResults: 10,
-          withContents: false,
-        }),
-      });
-
-      if (!fastSearchResponse.ok) {
-        throw new Error("Search failed");
-      }
-
-      const fastSearchData = await fastSearchResponse.json();
-      setSearchResults(fastSearchData.results);
-
-      // STAGE 2: Fetch with contents for TTS
-      setState("speaking");
-
-      const fullSearchResponse = await fetch("/api/voice-search", {
+      const searchResponse = await fetch("/api/voice-search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -369,49 +413,15 @@ export default function VoiceDemoHome() {
         }),
       });
 
-      if (!fullSearchResponse.ok) {
-        throw new Error("Failed to fetch content");
+      if (!searchResponse.ok) {
+        throw new Error("Search failed");
       }
 
-      const fullSearchData = await fullSearchResponse.json();
-      setSearchResults(fullSearchData.results);
+      const searchData = await searchResponse.json();
+      setSearchResults(searchData.results);
 
-      const ttsResponse = await fetch("/api/text-to-speech", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query,
-          results: fullSearchData.results,
-        }),
-      });
-
-      if (!ttsResponse.ok) {
-        throw new Error("Text-to-speech failed");
-      }
-
-      const ttsData = await ttsResponse.json();
-      setSpokenText(ttsData.text);
-
-      const audioBlob = new Blob(
-        [Uint8Array.from(atob(ttsData.audio), (c) => c.charCodeAt(0))],
-        { type: ttsData.contentType }
-      );
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-      audioRef.current = audio;
-
-      audio.onplay = () => setIsSpeaking(true);
-      audio.onended = () => {
-        setIsSpeaking(false);
-        setState("done");
-        URL.revokeObjectURL(audioUrl);
-      };
-      audio.onerror = () => {
-        setIsSpeaking(false);
-        setState("done");
-      };
-
-      await audio.play();
+      // Stream Gemini text + ElevenLabs audio
+      await runStreamingTTS(query, searchData.results);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
       setState("idle");
@@ -544,16 +554,14 @@ export default function VoiceDemoHome() {
                   onError={handleScribeError}
                   onAuthError={handleAuthError}
                   commitStrategy={CommitStrategy.VAD}
-                  autoStopOnSilenceMs={1500}
+                  autoStopOnSilenceMs={1000}
                   className="w-full"
                 >
                   <div className="flex items-center gap-3">
                     <SpeechInputRecordButton
                       disabled={isProcessing}
-                      className="h-12 w-12 rounded-full gradient-arrow-btn text-white shadow-arrow-btn transition-all hover:opacity-90 disabled:opacity-50"
-                    >
-                      <MicIcon className="h-5 w-5" />
-                    </SpeechInputRecordButton>
+                      className="h-12 w-12 rounded-full gradient-arrow-btn text-white [&_svg]:text-white shadow-arrow-btn transition-all hover:opacity-90 disabled:opacity-50"
+                    />
 
                     <div className="flex-1 flex items-center gap-2 text-sm text-exa-gray-600">
                       {state === "idle" && <span>Start a conversation</span>}

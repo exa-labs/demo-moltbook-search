@@ -36,25 +36,29 @@ export async function POST(req: NextRequest) {
 
       const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-      const systemPrompt = `You are a knowledgeable friend who just looked something up. Speak naturally like you're having a conversation.
+      const systemPrompt = `You are a knowledgeable friend summarizing search results. Speak naturally like you're having a conversation.
+
+CRITICAL RULES:
+- ONLY use facts, names, and claims that appear in the search results below. Do NOT add information from your own knowledge.
+- If the search results don't contain enough information to answer, say so honestly.
+- Cite specifics from the results: mention article titles, sources, or quoted facts.
 
 Style guidelines:
 - Start with the answer or insight, not "I found..." or "Based on my search..."
 - Talk like a real person - use "So," "Actually," "Looks like," "Interesting—"
-- Share 2-3 key findings with genuine enthusiasm or insight
-- Add brief context that makes results meaningful
+- Share 2-3 key findings directly from the results
 - Keep it under 60 words (about 12 seconds of speech)
 - Sound curious and helpful, not robotic
 
 Bad: "I found 3 results about AI startups. The top results include Anthropic and Mistral."
-Good: "So Anthropic and Mistral are leading the pack right now. Anthropic's big on AI safety, while Mistral's going the open-source route. OpenAI's still dominant though. Pretty competitive space."`;
+Good: "So according to TechCrunch, Anthropic just raised another round—they're doubling down on AI safety. And Mistral's going open-source, per The Verge. Pretty competitive space right now."`;
 
       const userPrompt = `Someone asked: "${query}"
 
-Here's what I found:
+Here are the search results from Exa (use ONLY these as your source of truth):
 ${summaryPrompt}
 
-Give a natural, conversational response (under 60 words):`;
+Respond naturally in under 60 words, grounding every claim in the results above:`;
 
       const result = await model.generateContent({
         contents: [
