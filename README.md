@@ -65,8 +65,8 @@ Company Researcher is a free and open-source tool that helps you instantly under
 
 1. Clone the repository
 ```bash
-git clone https://github.com/exa-labs/company-researcher.git
-cd company-researcher
+git clone https://github.com/exa-labs/demo-voice-search.git
+cd demo-voice-search
 ```
 
 2. Install dependencies
