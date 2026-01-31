@@ -43,6 +43,11 @@ interface TimelineStage {
   active: boolean;
 }
 
+function formatDuration(label: string, ms: number): string {
+  if (label === "Speech") return `${(ms / 1000).toFixed(1)}s`;
+  return `${Math.round(ms)}ms`;
+}
+
 interface PipelineTimelineProps {
   timestamps: PipelineTimestamps;
   className?: string;
@@ -150,7 +155,7 @@ export function PipelineTimeline({ timestamps, className }: PipelineTimelineProp
         </span>
         {timestamps.speechEnd && timestamps.ttsDone && (
           <span className="font-mono text-xs tabular-nums text-exa-gray-500">
-            {((timestamps.ttsDone - timestamps.speechEnd) / 1000).toFixed(1)}s question → answer
+            {Math.round(timestamps.ttsDone - timestamps.speechEnd)}ms question → answer
           </span>
         )}
       </div>
@@ -188,15 +193,15 @@ export function PipelineTimeline({ timestamps, className }: PipelineTimelineProp
                         transform: "translate(-50%, -50%)",
                       }}
                     >
-                      {(stage.durationMs / 1000).toFixed(1)}s
+                      {formatDuration(stage.label, stage.durationMs)}
                     </span>
                   )}
                 </div>
 
                 {/* Duration label */}
-                <span className="text-[10px] font-mono tabular-nums text-exa-gray-500 w-14 text-right shrink-0">
+                <span className="text-[10px] font-mono tabular-nums text-exa-gray-500 w-16 text-right shrink-0">
                   {stage.completed
-                    ? `${(stage.durationMs / 1000).toFixed(1)}s`
+                    ? formatDuration(stage.label, stage.durationMs)
                     : "..."}
                 </span>
               </div>

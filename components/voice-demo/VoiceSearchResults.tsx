@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
 
 interface SearchResult {
@@ -15,10 +15,12 @@ interface SearchResult {
 interface VoiceSearchResultsProps {
   results: SearchResult[];
   citations?: number[];
+  defaultCollapsed?: boolean;
 }
 
-export default function VoiceSearchResults({ results, citations = [] }: VoiceSearchResultsProps) {
-  const [showAll, setShowAll] = useState(false);
+export default function VoiceSearchResults({ results, citations = [], defaultCollapsed = false }: VoiceSearchResultsProps) {
+  const [showAll, setShowAll] = useState(!defaultCollapsed);
+  useEffect(() => { setShowAll(!defaultCollapsed); }, [defaultCollapsed]);
   const displayedResults = showAll ? results : results.slice(0, 5);
 
   const getDomain = (url: string) => {
@@ -52,13 +54,13 @@ export default function VoiceSearchResults({ results, citations = [] }: VoiceSea
               {citations.length > 0 && (
                 <th className="w-[1%] pl-4 pr-0 py-3" />
               )}
-              <th className="px-4 py-3 text-left text-xs font-medium text-exa-gray-600 uppercase tracking-wide">
+              <th className="px-3 py-2 text-left text-xs font-medium text-exa-gray-600 uppercase tracking-wide">
                 Title
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-exa-gray-600 uppercase tracking-wide hidden sm:table-cell">
+              <th className="px-3 py-2 text-left text-xs font-medium text-exa-gray-600 uppercase tracking-wide hidden sm:table-cell">
                 Source
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-exa-gray-600 uppercase tracking-wide hidden md:table-cell">
+              <th className="px-3 py-2 text-left text-xs font-medium text-exa-gray-600 uppercase tracking-wide hidden md:table-cell">
                 Summary
               </th>
             </tr>
@@ -80,7 +82,7 @@ export default function VoiceSearchResults({ results, citations = [] }: VoiceSea
                     )}
                   </td>
                 )}
-                <td className="px-4 py-3">
+                <td className="px-3 py-2">
                   <a
                     href={result.url}
                     target="_blank"
@@ -106,7 +108,7 @@ export default function VoiceSearchResults({ results, citations = [] }: VoiceSea
                     )}
                   </div>
                 </td>
-                <td className="px-4 py-3 hidden sm:table-cell">
+                <td className="px-3 py-2 hidden sm:table-cell">
                   <div className="flex flex-col gap-1">
                     <span className="text-[13px] text-exa-gray-600">
                       {getDomain(result.url)}
@@ -118,7 +120,7 @@ export default function VoiceSearchResults({ results, citations = [] }: VoiceSea
                     )}
                   </div>
                 </td>
-                <td className="px-4 py-3 hidden md:table-cell">
+                <td className="px-3 py-2 hidden md:table-cell">
                   {result.text ? (
                     <p className="text-[13px] text-exa-gray-600 line-clamp-2">
                       {result.text}

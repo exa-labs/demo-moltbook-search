@@ -183,7 +183,7 @@ export async function POST(req: NextRequest) {
         const optimizedQuery = queryConfig.query;
 
         // Build Exa search options
-        const searchType = queryConfig.useAutoprompt ? "auto" : "keyword";
+        const searchType = queryConfig.useAutoprompt ? "auto" : "fast";
         const baseOptions: Record<string, unknown> = {
           type: searchType,
           numResults: 10,

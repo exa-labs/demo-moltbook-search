@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Volume2, VolumeX, Search, MicIcon, SquareIcon } from "lucide-react";
+import { Volume2, VolumeX, Search, MicIcon, SquareIcon, ArrowRight } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
 import {
   SpeechInput,
   SpeechInputRecordButton,
@@ -454,30 +456,37 @@ export default function VoiceDemoHome() {
   return (
     <div className="min-h-screen bg-exa-gray-100 font-diatype text-exa-black">
       {/* Header */}
-      <div className="border-b border-exa-gray-300 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
-        <div className="mx-auto max-w-7xl px-6 py-4 flex items-center gap-3">
-          <h1 className="font-arizona text-xl tracking-tight text-exa-black">
+      <header className="bg-white pt-4 pb-4">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <div className="flex items-center justify-between mb-3">
+            <Image src="/exa_logo.png" alt="Exa" width={60} height={20} className="h-5 w-auto" />
+            <Link href="/how-it-works" className="flex cursor-pointer items-center gap-1 rounded-lg border border-exa-gray-400 bg-white px-3 py-2 text-sm font-medium transition-all duration-200 hover:bg-[#f9f7f7] hover:border-exa-blue-border active:bg-[#f9f7f7] active:border-exa-gray-300 w-[140px] justify-between">
+              <span>How It Works</span>
+              <ArrowRight size={16} className="text-black" />
+            </Link>
+          </div>
+          <h1 className="font-arizona text-3xl tracking-tight text-black">
             Search at Tip of the Tongue
           </h1>
-          <span className="rounded-full bg-exa-blue/10 px-2.5 py-0.5 text-xs font-medium text-exa-blue">
-            Beta
-          </span>
+          <p className="mt-1 text-sm text-black/60">
+            Voice-powered search that finds what you&apos;re looking for, even when it&apos;s on the tip of your tongue.
+          </p>
         </div>
-      </div>
+      </header>
 
       {/* Two Column Layout */}
-      <div className="mx-auto max-w-7xl px-6 py-8">
+      <div className="mx-auto max-w-7xl px-6 py-4">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
           {/* LEFT COLUMN - Conversation */}
           <div className="flex flex-col">
-            <div className="rounded-2xl border border-exa-gray-300 bg-white shadow-tag flex flex-col min-h-[600px]">
+            <div className="rounded-2xl border border-exa-gray-300 bg-white shadow-tag flex flex-col h-[420px]">
               {/* Conversation Header with Waveform */}
-              <div className="p-4 border-b border-exa-gray-300">
+              <div className="p-3 border-b border-exa-gray-300">
                 <LiveWaveform
                   active={state === "recording"}
                   processing={state === "searching" || state === "speaking"}
-                  height={60}
+                  height={40}
                   barWidth={2}
                   barGap={2}
                   barRadius={1}
@@ -489,17 +498,17 @@ export default function VoiceDemoHome() {
               </div>
 
               {/* Conversation Content */}
-              <div className="flex-1 p-5 overflow-y-auto">
+              <div className="flex-1 p-4 overflow-y-auto">
                 {/* Idle State */}
                 {state === "idle" && !liveTranscript && !transcript && (
                   <div className="h-full flex flex-col items-center justify-center text-center text-exa-gray-600">
-                    <MicIcon className="h-12 w-12 mb-4 text-exa-gray-400" />
+                    <MicIcon className="h-8 w-8 mb-3 text-exa-gray-400" />
                     <p className="text-sm font-medium text-exa-gray-700">Press the mic button to start</p>
                     <p className="text-xs text-exa-gray-500 mt-1">Ask anything and get results as you speak</p>
 
                     {/* Example Queries */}
                     {!searchResults && (
-                      <div className="mt-8 flex flex-col items-center gap-2 w-full max-w-md">
+                      <div className="mt-4 flex flex-col items-center gap-2 w-full max-w-md">
                         <span className="text-xs text-exa-gray-500 uppercase tracking-wide font-medium">Try asking</span>
                         {EXAMPLE_QUERIES.map((example) => (
                           <button
@@ -565,7 +574,7 @@ export default function VoiceDemoHome() {
               </div>
 
               {/* Voice Input Footer */}
-              <div className="p-4 border-t border-exa-gray-300 bg-exa-gray-100/50">
+              <div className="p-3 border-t border-exa-gray-300 bg-exa-gray-100/50">
                 <SpeechInput
                   getToken={fetchScribeToken}
                   onChange={handleTranscriptChange}
@@ -620,7 +629,7 @@ export default function VoiceDemoHome() {
 
             {/* Pipeline Timeline */}
             {timestamps.speechStart && (
-              <PipelineTimeline timestamps={timestamps} className="mt-6" />
+              <PipelineTimeline timestamps={timestamps} className="mt-4" />
             )}
 
             {/* Error */}
@@ -632,7 +641,7 @@ export default function VoiceDemoHome() {
           </div>
 
           {/* RIGHT COLUMN - Query Builder & Results */}
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4">
             {/* Query Code Block */}
             <div>
               <div className="flex items-center justify-between mb-2">
@@ -668,7 +677,7 @@ export default function VoiceDemoHome() {
                         : "text-exa-gray-500 hover:text-exa-gray-700 hover:bg-exa-gray-200"
                     }`}
                   >
-                    Content{searchResults ? ` (${searchResults.length})` : ""}
+                    Auto With Content{searchResults ? ` (${searchResults.length})` : ""}
                   </button>
                 </div>
 
@@ -681,10 +690,10 @@ export default function VoiceDemoHome() {
               </div>
 
               {activeResults && activeResults.length > 0 ? (
-                <VoiceSearchResults results={activeResults} citations={activeCitations} />
+                <VoiceSearchResults results={activeResults} citations={activeCitations} defaultCollapsed />
               ) : (
-                <div className="rounded-xl border border-dashed border-exa-gray-300 bg-white p-8 text-center shadow-tag">
-                  <Search className="h-8 w-8 mx-auto mb-3 text-exa-gray-400" />
+                <div className="rounded-xl border border-dashed border-exa-gray-300 bg-white p-6 text-center shadow-tag">
+                  <Search className="h-6 w-6 mx-auto mb-2 text-exa-gray-400" />
                   <p className="text-sm text-exa-gray-500">
                     {resultsTab === "content" && !searchResults
                       ? "Content results appear after recording stops"

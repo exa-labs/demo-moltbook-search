@@ -24,9 +24,9 @@ export async function POST(req: NextRequest) {
     // Analyze and optimize the query
     const queryConfig = analyzeAndOptimizeQuery(query);
 
-    // Use "keyword" for instant results (fastest), "auto" for best quality
+    // Use "fast" for instant results (lowest latency), "auto" for best quality
     // Use "auto" if autoprompt is recommended for this query type
-    const searchType = mode === "auto" || queryConfig.useAutoprompt ? "auto" : "keyword";
+    const searchType = mode === "auto" || queryConfig.useAutoprompt ? "auto" : "fast";
 
     // Build search options based on query analysis
     const baseOptions: Record<string, unknown> = {
