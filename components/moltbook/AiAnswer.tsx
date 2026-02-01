@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import type { SearchResult } from "./SearchResults";
 
@@ -37,17 +37,21 @@ async function consumeAnswerStream(
       if (line.startsWith("event: ")) {
         currentEvent = line.slice(7).trim();
       } else if (line.startsWith("data: ")) {
-        const data = JSON.parse(line.slice(6));
-        switch (currentEvent) {
-          case "text":
-            callbacks.onTextChunk(data.chunk);
-            break;
-          case "textDone":
-            callbacks.onTextDone(data.fullText, data.citations || []);
-            break;
-          case "error":
-            callbacks.onError(data.error);
-            break;
+        try {
+          const data = JSON.parse(line.slice(6));
+          switch (currentEvent) {
+            case "text":
+              callbacks.onTextChunk(data.chunk);
+              break;
+            case "textDone":
+              callbacks.onTextDone(data.fullText, data.citations || []);
+              break;
+            case "error":
+              callbacks.onError(data.error);
+              break;
+          }
+        } catch {
+          // skip malformed JSON
         }
       }
     }
@@ -59,12 +63,13 @@ export default function AiAnswer({
   results,
   onCitationsChange,
 }: AiAnswerProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [answerText, setAnswerText] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const fetchedRef = useRef(false);
 
   const fetchAnswer = useCallback(async () => {
     if (hasLoaded || isLoading) return;
@@ -107,19 +112,19 @@ export default function AiAnswer({
     }
   }, [query, results, hasLoaded, isLoading, onCitationsChange]);
 
-  const handleToggle = () => {
-    const newOpen = !isOpen;
-    setIsOpen(newOpen);
-    if (newOpen && !hasLoaded && !isLoading) {
+  // Auto-fetch on mount
+  useEffect(() => {
+    if (!fetchedRef.current) {
+      fetchedRef.current = true;
       fetchAnswer();
     }
-  };
+  }, [fetchAnswer]);
 
   return (
-    <div className="rounded border border-molt-border bg-white overflow-hidden">
+    <div className="rounded border border-molt-border bg-molt-card overflow-hidden">
       {/* Toggle header */}
       <button
-        onClick={handleToggle}
+        onClick={() => setIsOpen((o) => !o)}
         className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-molt-bg transition-colors"
       >
         <div className="flex items-center gap-2">
@@ -142,7 +147,7 @@ export default function AiAnswer({
       {isOpen && (
         <div className="px-4 pb-3 border-t border-molt-border-light">
           {error ? (
-            <p className="mt-2.5 text-[12px] text-red-600">{error}</p>
+            <p className="mt-2.5 text-[12px] text-red-600 dark:text-red-400">{error}</p>
           ) : answerText ? (
             <p
               className={`mt-2.5 text-[12px] text-molt-text leading-relaxed ${

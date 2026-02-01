@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback, useRef, FormEvent } from "react";
-import { Search, Loader2 } from "lucide-react";
+import { useState, useCallback, useRef, useEffect, FormEvent } from "react";
+import { Search, Loader2, Sun, Moon } from "lucide-react";
 import SearchResults, { type SearchResult } from "./SearchResults";
 import AiAnswer from "./AiAnswer";
 
@@ -23,6 +23,18 @@ export default function MoltbookSearch() {
   const [error, setError] = useState<string | null>(null);
   const [lastQuery, setLastQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    setIsDark(document.documentElement.classList.contains("dark"));
+  }, []);
+
+  const toggleTheme = () => {
+    const next = !isDark;
+    setIsDark(next);
+    document.documentElement.classList.toggle("dark", next);
+    localStorage.setItem("theme", next ? "dark" : "light");
+  };
 
   const handleSearch = useCallback(
     async (searchQuery: string) => {
@@ -83,17 +95,26 @@ export default function MoltbookSearch() {
               beta
             </span>
           </div>
-          <span className="text-[11px] text-zinc-400">
-            powered by{" "}
-            <a
-              href="https://exa.ai"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-molt-cyan hover:underline"
+          <div className="flex items-center gap-3">
+            <span className="text-[11px] text-zinc-400">
+              powered by{" "}
+              <a
+                href="https://exa.ai"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-molt-cyan hover:underline"
+              >
+                exa.ai
+              </a>
+            </span>
+            <button
+              onClick={toggleTheme}
+              className="text-zinc-400 hover:text-white transition-colors"
+              aria-label="Toggle dark mode"
             >
-              exa.ai
-            </a>
-          </span>
+              {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -129,7 +150,7 @@ export default function MoltbookSearch() {
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search moltbook..."
                   disabled={isSearching}
-                  className="w-full rounded border border-molt-border bg-white pl-9 pr-3 py-2 text-[13px] text-molt-text placeholder:text-molt-text-muted focus:outline-none focus:border-molt-cyan focus:shadow-[0_0_0_2px_rgba(0,212,170,0.2)] transition-all disabled:opacity-60"
+                  className="w-full rounded border border-molt-border bg-molt-card pl-9 pr-3 py-2 text-[13px] text-molt-text placeholder:text-molt-text-muted focus:outline-none focus:border-molt-cyan focus:shadow-[0_0_0_2px_rgba(0,212,170,0.2)] transition-all disabled:opacity-60"
                   autoFocus
                 />
               </div>
@@ -154,7 +175,7 @@ export default function MoltbookSearch() {
                 <button
                   key={example}
                   onClick={() => handleExampleClick(example)}
-                  className="rounded-full border border-molt-border bg-white px-3 py-1 text-[11px] text-molt-text-secondary hover:text-molt-blue hover:border-molt-blue transition-colors"
+                  className="rounded-full border border-molt-border bg-molt-card px-3 py-1 text-[11px] text-molt-text-secondary hover:text-molt-blue hover:border-molt-blue transition-colors"
                 >
                   {example}
                 </button>
@@ -168,7 +189,7 @@ export default function MoltbookSearch() {
           <div className="mt-4 pb-16">
             {/* Loading state */}
             {isSearching && (
-              <div className="rounded border border-molt-border bg-white">
+              <div className="rounded border border-molt-border bg-molt-card">
                 {[...Array(5)].map((_, i) => (
                   <div
                     key={i}
@@ -184,7 +205,7 @@ export default function MoltbookSearch() {
 
             {/* Error */}
             {error && (
-              <div className="rounded border border-red-300 bg-red-50 px-4 py-3 text-xs text-red-700">
+              <div className="rounded border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950 px-4 py-3 text-xs text-red-700 dark:text-red-400">
                 {error}
               </div>
             )}
@@ -217,7 +238,7 @@ export default function MoltbookSearch() {
               !error &&
               results.length === 0 &&
               searchState === "done" && (
-                <div className="text-center py-12 rounded border border-molt-border bg-white">
+                <div className="text-center py-12 rounded border border-molt-border bg-molt-card">
                   <p className="text-xs text-molt-text-secondary">
                     No results found for &ldquo;{lastQuery}&rdquo;
                   </p>

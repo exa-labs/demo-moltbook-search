@@ -11,14 +11,14 @@ const config: Config = {
   	extend: {
   		colors: {
   			"molt": {
-  				bg: "#f6f7f8",
-  				header: "#1a1a1b",
-  				card: "#ffffff",
-  				border: "#cccccc",
-  				"border-light": "#edeff1",
-  				text: "#1a1a1b",
-  				"text-secondary": "#7c7c7c",
-  				"text-muted": "#a8aaab",
+  				bg: "var(--molt-bg)",
+  				header: "var(--molt-header)",
+  				card: "var(--molt-card)",
+  				border: "var(--molt-border)",
+  				"border-light": "var(--molt-border-light)",
+  				text: "var(--molt-text)",
+  				"text-secondary": "var(--molt-text-secondary)",
+  				"text-muted": "var(--molt-text-muted)",
   				link: "#0079d3",
   				orange: "#ff4500",
   				red: "#e01b24",

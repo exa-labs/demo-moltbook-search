@@ -67,7 +67,7 @@ export default function SearchResults({
   return (
     <div>
       {/* Reddit-style stacked list */}
-      <div className="rounded border border-molt-border bg-white overflow-hidden">
+      <div className="rounded border border-molt-border bg-molt-card overflow-hidden">
         {displayedResults.map((result, index) => {
           const isCited = citations.includes(index + 1);
           const submolt = getSubmolt(result.url);
@@ -77,7 +77,7 @@ export default function SearchResults({
             <div
               key={index}
               className={`border-b border-molt-border-light last:border-b-0 transition-colors hover:bg-molt-bg ${
-                isCited ? "bg-orange-50/60" : ""
+                isCited ? "bg-orange-50/60 dark:bg-orange-900/20" : ""
               }`}
             >
               <div className="flex">

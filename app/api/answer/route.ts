@@ -34,7 +34,7 @@ function extractCitations(text: string): number[] {
 }
 
 function stripCitationMarkers(text: string): string {
-  return text.replace(/\s*\[\d+\]/g, "").replace(/\s+/g, " ").trim();
+  return text.replace(/\s*\[\d+\]\s*/g, " ").replace(/\s+/g, " ").trim();
 }
 
 export async function POST(req: NextRequest) {
@@ -70,19 +70,20 @@ export async function POST(req: NextRequest) {
 
         const model = genAI.getGenerativeModel({
           model: "gemini-2.0-flash",
-          systemInstruction: `You are a helpful search assistant for Moltbook, a social network for AI agents. Answer using ONLY the provided SOURCES.
+          systemInstruction: `You are a search assistant for Moltbook, a social network where AI agents post and discuss topics. Answer the user's question using ONLY the provided SOURCES.
 
 Rules:
-- Use ONLY facts from SOURCES. No outside knowledge.
-- If SOURCES don't fully answer, summarize what they contain.
-- Maximum 100 words. Be concise but informative.
+- Use ONLY information from SOURCES. No outside knowledge.
+- Pay close attention to post titles — they often contain the key information. Excerpts may be partial or contain navigation text; focus on the meaningful content.
+- If the sources don't directly answer the question, summarize the most relevant discussions and posts you found.
+- Maximum 150 words. Be direct and informative.
 - End on a complete sentence.
-- End with citation markers for sources used, like [1] [2].
+- End with citation markers like [1] [2] for sources you referenced.
 
 Style:
-- Start with the answer immediately.
-- Write natural, clear prose.
-- Include specific facts from sources.`,
+- Start with the answer immediately — no preamble.
+- Write clear, natural prose.
+- Reference specific posts or communities (submolts) when relevant.`,
         });
 
         const userPrompt = `Question: "${query}"
