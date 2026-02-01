@@ -54,7 +54,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ### `POST /api/search`
 
-Searches moltbook.com using the [Exa search](https://docs.exa.ai/reference/search) endpoint.
+Searches moltbook.com using the [Exa search](https://docs.exa.ai/reference/search) endpoint. Results are scoped to `moltbook.com` via `includeDomains`.
 
 | Field | Type | Description |
 |-------|------|-------------|

@@ -15,6 +15,58 @@ const EXAMPLE_QUERIES = [
 
 type SearchState = "idle" | "searching" | "done";
 
+async function consumeSearchStream(
+  response: Response,
+  callbacks: {
+    onSearchResults: (results: SearchResult[], query: string) => void;
+    onTextChunk: (chunk: string) => void;
+    onTextDone: (fullText: string, citations: number[]) => void;
+    onError: (error: string) => void;
+  }
+) {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("No response body");
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let currentEvent = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      if (line.startsWith("event: ")) {
+        currentEvent = line.slice(7).trim();
+      } else if (line.startsWith("data: ")) {
+        try {
+          const data = JSON.parse(line.slice(6));
+          switch (currentEvent) {
+            case "search_results":
+              callbacks.onSearchResults(data.results, data.query);
+              break;
+            case "text":
+              callbacks.onTextChunk(data.chunk);
+              break;
+            case "textDone":
+              callbacks.onTextDone(data.fullText, data.citations || []);
+              break;
+            case "error":
+              callbacks.onError(data.error);
+              break;
+          }
+        } catch {
+          // skip malformed JSON
+        }
+      }
+    }
+  }
+}
+
 export default function MoltbookSearch() {
   const [query, setQuery] = useState("");
   const [searchState, setSearchState] = useState<SearchState>("idle");
@@ -22,7 +74,11 @@ export default function MoltbookSearch() {
   const [citations, setCitations] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [lastQuery, setLastQuery] = useState("");
+  const [answerText, setAnswerText] = useState("");
+  const [isAnswerStreaming, setIsAnswerStreaming] = useState(false);
+  const [answerError, setAnswerError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
@@ -41,10 +97,17 @@ export default function MoltbookSearch() {
       const trimmed = searchQuery.trim();
       if (!trimmed) return;
 
+      // Abort any in-flight stream
+      abortRef.current?.abort();
+      abortRef.current = new AbortController();
+
       setSearchState("searching");
       setResults([]);
       setCitations([]);
       setError(null);
+      setAnswerText("");
+      setAnswerError(null);
+      setIsAnswerStreaming(false);
       setLastQuery(trimmed);
 
       try {
@@ -52,16 +115,33 @@ export default function MoltbookSearch() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query: trimmed }),
+          signal: abortRef.current.signal,
         });
 
         if (!response.ok) {
           throw new Error("Search failed");
         }
 
-        const data = await response.json();
-        setResults(data.results || []);
-        setSearchState("done");
+        await consumeSearchStream(response, {
+          onSearchResults: (searchResults) => {
+            setResults(searchResults);
+            setSearchState("done");
+            setIsAnswerStreaming(true);
+          },
+          onTextChunk: (chunk) => {
+            setAnswerText((prev) => prev + chunk);
+          },
+          onTextDone: (_fullText, citationsList) => {
+            setIsAnswerStreaming(false);
+            setCitations(citationsList);
+          },
+          onError: (errorMsg) => {
+            setAnswerError(errorMsg);
+            setIsAnswerStreaming(false);
+          },
+        });
       } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
         setError(err instanceof Error ? err.message : "Search failed");
         setSearchState("done");
       }
@@ -215,9 +295,10 @@ export default function MoltbookSearch() {
               <div className="space-y-3">
                 {/* AI Answer */}
                 <AiAnswer
-                  query={lastQuery}
-                  results={results}
-                  onCitationsChange={setCitations}
+                  answerText={answerText}
+                  isStreaming={isAnswerStreaming}
+                  isLoading={isAnswerStreaming && !answerText}
+                  error={answerError}
                 />
 
                 {/* Result count */}

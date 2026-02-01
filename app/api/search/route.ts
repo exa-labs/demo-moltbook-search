@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Exa from "exa-js";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export const maxDuration = 60;
 
@@ -9,38 +10,208 @@ function getExa() {
   return _exa;
 }
 
-export async function POST(req: NextRequest) {
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+
+interface SearchResult {
+  title: string;
+  url: string;
+  text: string;
+  publishedDate: string | null;
+  score: number | null;
+}
+
+function getDomain(url: string): string {
   try {
-    const { query, numResults = 10 } = await req.json();
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "unknown";
+  }
+}
 
-    if (!query || typeof query !== "string") {
-      return NextResponse.json(
-        { error: "Query is required" },
-        { status: 400 }
-      );
-    }
+function sseEvent(event: string, data: Record<string, unknown>): string {
+  return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+}
 
-    const result = await getExa().search(query, {
-      type: "auto",
-      numResults: Math.min(numResults, 20),
-      text: { maxCharacters: 500 },
-      includeDomains: ["moltbook.com"],
-    });
+function extractCitations(text: string): number[] {
+  const citations = new Set<number>();
+  for (const match of text.matchAll(/\[(\d+)\]/g)) {
+    citations.add(parseInt(match[1], 10));
+  }
+  return Array.from(citations).sort((a, b) => a - b);
+}
 
-    const results = result.results.map((r) => ({
-      title: r.title || "Untitled",
-      url: r.url,
-      text: r.text || "",
-      publishedDate: r.publishedDate || null,
-      score: r.score || null,
-    }));
+function stripCitationMarkers(text: string): string {
+  return text.replace(/\s*\[\d+\]\s*/g, " ").replace(/\s+/g, " ").trim();
+}
 
-    return NextResponse.json({ results, query });
-  } catch (error) {
-    console.error("Search error:", error);
+export async function POST(req: NextRequest) {
+  const { query, numResults = 10 } = await req.json();
+
+  if (!query || typeof query !== "string") {
     return NextResponse.json(
-      { error: "Search failed" },
-      { status: 500 }
+      { error: "Query is required" },
+      { status: 400 }
     );
   }
+
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        // Phase 1: Exa search
+        const exaResult = await getExa().searchAndContents(query, {
+          type: "auto",
+          numResults: Math.min(numResults, 20),
+          text: { maxCharacters: 500 },
+          highlights: { numSentences: 5, highlightsPerUrl: 5 },
+          includeDomains: ["moltbook.com"],
+        });
+
+        const results: SearchResult[] = exaResult.results.map((r) => {
+          const highlights = (r.highlights || []).join(" ");
+          const text = r.text || "";
+          // Use highlights if text is just a loading shell
+          const content = text.includes("Loading...") && highlights
+            ? highlights
+            : text;
+          return {
+            title: r.title || "Untitled",
+            url: r.url,
+            text: content,
+            publishedDate: r.publishedDate || null,
+            score: r.score || null,
+          };
+        });
+
+        controller.enqueue(
+          encoder.encode(sseEvent("search_results", { results, query }))
+        );
+
+        if (results.length === 0) {
+          controller.enqueue(encoder.encode(sseEvent("done", {})));
+          controller.close();
+          return;
+        }
+
+        // Phase 2: Gemini streaming answer
+        const topResults = results.slice(0, 5);
+
+        const sources = topResults
+          .map((r, i) => {
+            const domain = getDomain(r.url || "");
+            return `[${i + 1}] title: ${r.title || "Untitled"}
+    domain: ${domain}
+    url: ${r.url || ""}
+    date: ${r.publishedDate || "unknown"}
+    excerpt: ${(r.text || "No excerpt available").slice(0, 500)}`;
+          })
+          .join("\n\n");
+
+        const model = genAI.getGenerativeModel({
+          model: "gemini-2.0-flash",
+          systemInstruction: `You are a search assistant for Moltbook, a social network where AI agents post and discuss topics. Answer the user's question using ONLY the provided SOURCES.
+
+Rules:
+- Use ONLY information from SOURCES. No outside knowledge.
+- Pay close attention to post titles — they often contain the key information. Excerpts may be partial or contain navigation text; focus on the meaningful content.
+- ALWAYS provide a response. Never say you can't answer or that sources don't contain information. If sources aren't a direct match, summarize the most relevant discussions and posts you found.
+- Maximum 150 words. Be direct and informative.
+- End on a complete sentence.
+- End with citation markers like [1] [2] for sources you referenced.
+
+Style:
+- Start with the answer immediately — no preamble, no apologies, no disclaimers.
+- Write clear, natural prose.
+- Reference specific posts or communities (submolts) when relevant.`,
+        });
+
+        const userPrompt = `Question: "${query}"
+
+SOURCES (use ONLY these):
+${sources}
+
+Respond in plain text. End with citation markers like [1] [2].`;
+
+        let fullText = "";
+        let pendingText = "";
+
+        const result = await model.generateContentStream({
+          contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 300,
+          },
+        });
+
+        for await (const chunk of result.stream) {
+          const text = chunk.text();
+          if (!text) continue;
+
+          fullText += text;
+          pendingText += text;
+
+          // Hold back partial citation markers at the end
+          const partialMatch = pendingText.match(/\s*\[\d*$/);
+          let textToSend: string;
+          if (partialMatch) {
+            textToSend = pendingText.slice(0, -partialMatch[0].length);
+            pendingText = partialMatch[0];
+          } else {
+            textToSend = pendingText;
+            pendingText = "";
+          }
+
+          const cleanText = stripCitationMarkers(textToSend);
+          if (cleanText) {
+            controller.enqueue(
+              encoder.encode(sseEvent("text", { chunk: cleanText }))
+            );
+          }
+        }
+
+        // Flush remaining
+        if (pendingText) {
+          const cleanRemaining = stripCitationMarkers(pendingText);
+          if (cleanRemaining) {
+            controller.enqueue(
+              encoder.encode(sseEvent("text", { chunk: cleanRemaining }))
+            );
+          }
+        }
+
+        const citations = extractCitations(fullText);
+        controller.enqueue(
+          encoder.encode(
+            sseEvent("textDone", {
+              fullText: stripCitationMarkers(fullText),
+              citations,
+            })
+          )
+        );
+
+        controller.enqueue(encoder.encode(sseEvent("done", {})));
+        controller.close();
+      } catch (error) {
+        console.error("Search/answer error:", error);
+        controller.enqueue(
+          encoder.encode(
+            sseEvent("error", {
+              error:
+                error instanceof Error ? error.message : "Unknown error",
+            })
+          )
+        );
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
 }
