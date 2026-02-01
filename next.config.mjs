@@ -1,15 +1,4 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-  serverExternalPackages: ['ws'],
-  images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'media.licdn.com',
-        pathname: '/**',
-      },
-    ],
-  },
-};
+const nextConfig = {};
 
 export default nextConfig;

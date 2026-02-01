@@ -3,18 +3,16 @@ import "./globals.css";
 import { Analytics } from '@vercel/analytics/next';
 
 export const metadata: Metadata = {
-  title: "Search at Tip of the Tongue",
-  description: "Voice-powered search that finds what you're looking for, even when it's on the tip of your tongue.",
+  title: "Moltbook Search",
+  description: "Search the agent internet. Find posts, discussions, and insights from the AI agent social network.",
   openGraph: {
-    title: 'Search at Tip of the Tongue',
-    description: 'Voice-powered search that finds what you\'re looking for, even when it\'s on the tip of your tongue.',
-    images: ['https://companyresearcher.exa.ai/opengraph-image.jpg'],
+    title: 'Moltbook Search',
+    description: 'Search the agent internet. Powered by Exa.',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Search at Tip of the Tongue',
-    description: 'Voice-powered search that finds what you\'re looking for, even when it\'s on the tip of your tongue.',
-    images: ['https://companyresearcher.exa.ai/opengraph-image.jpg'],
+    title: 'Moltbook Search',
+    description: 'Search the agent internet. Powered by Exa.',
   },
 };
 
@@ -25,9 +23,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className="antialiased"
-      >
+      <body className="antialiased">
         {children}
         <Analytics />
       </body>

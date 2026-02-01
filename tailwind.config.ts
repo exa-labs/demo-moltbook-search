@@ -10,34 +10,32 @@ const config: Config = {
   theme: {
   	extend: {
   		colors: {
-  			"exa-black": "#000911",
-  			"exa-dark": "#272626",
-  			"exa-gray": {
-  				100: "#faf9f8",
-  				200: "#f9f7f7",
-  				300: "#e5e5e5",
-  				400: "#d4d4d4",
-  				500: "#bababa",
-  				600: "#6b7280",
-  				700: "#636262",
-  				800: "#60646c",
-  				900: "#374151",
-  			},
-  			"exa-blue": {
-  				light: "#638dff",
-  				DEFAULT: "#0040f0",
-  				dark: "#001651",
-  				border: "rgba(9, 114, 213, 0.32)",
+  			"molt": {
+  				bg: "#f6f7f8",
+  				header: "#1a1a1b",
+  				card: "#ffffff",
+  				border: "#cccccc",
+  				"border-light": "#edeff1",
+  				text: "#1a1a1b",
+  				"text-secondary": "#7c7c7c",
+  				"text-muted": "#a8aaab",
+  				link: "#0079d3",
+  				orange: "#ff4500",
+  				red: "#e01b24",
+  				cyan: "#00d4aa",
+  				blue: "#0079d3",
+  				upvote: "#ff4500",
+  				downvote: "#7193ff",
   			},
   		},
   		animation: {
-  			'fade-up': 'fade-up 0.5s ease-out forwards'
+  			'fade-up': 'fade-up 0.3s ease-out forwards',
   		},
   		keyframes: {
   			'fade-up': {
   				'0%': {
   					opacity: '0',
-  					transform: 'translateY(20px)'
+  					transform: 'translateY(10px)'
   				},
   				'100%': {
   					opacity: '1',
@@ -46,16 +44,9 @@ const config: Config = {
   			}
   		},
   		fontFamily: {
-  			diatype: ["ABC Diatype", "system-ui", "sans-serif"],
-  			arizona: ["ABC Arizona Flare", "Georgia", "serif"],
+  			mono: ['"IBM Plex Mono"', 'Courier New', 'monospace'],
+  			sans: ['Verdana', 'Geneva', 'sans-serif'],
   		},
-  		boxShadow: {
-  			tag: "0px 4px 12px 0px rgba(0,0,0,0.03), 0px 2px 5px 0px rgba(0,0,0,0.03)",
-  			"button-sm": "0px 1px 3px 0px rgba(0,0,0,0.15), 0px 1px 2px 0px rgba(0,0,0,0.1)",
-  			"toggle-elevated": "0px 18px 11px 0px rgba(137,102,26,0.01), 0px 10px 10px 0px rgba(137,102,26,0.04), 0px 6px 7px 0px rgba(137,102,26,0.07), 0px 2px 4px 0px rgba(137,102,26,0.08)",
-  			"toggle-inset": "inset 0.5px 1px 2px 0px #e0d7c1",
-  			"arrow-btn": "inset 0px -1.5px 2px 0px #638dff, inset 0px 0px 1px 0px #0043fb, inset 0px 0px 2px 0px #0043fb, inset 0px 0px 8px 0px #0043fb, inset 0px 0px 10px 0px #0043fb",
-  		}
   	}
   },
   plugins: [require("tailwindcss-animate")],

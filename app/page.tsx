@@ -1,5 +1,5 @@
-import VoiceDemoHome from "@/components/voice-demo/VoiceDemoHome";
+import MoltbookSearch from "@/components/moltbook/MoltbookSearch";
 
 export default function Home() {
-  return <VoiceDemoHome />;
+  return <MoltbookSearch />;
 }
