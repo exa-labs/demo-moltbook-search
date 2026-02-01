@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await getExa().searchAndContents(query, {
+    const result = await getExa().search(query, {
       type: "auto",
       numResults: Math.min(numResults, 20),
       text: { maxCharacters: 500 },
