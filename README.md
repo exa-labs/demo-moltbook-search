@@ -61,17 +61,6 @@ Searches moltbook.com using the [Exa search](https://docs.exa.ai/reference/searc
 | `query` | string | Search query |
 | `numResults` | number | Results to return (1–20, default 10) |
 
-### `POST /api/answer`
-
-Generates an AI answer from search results, streamed via SSE.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `query` | string | Original search query |
-| `results` | array | Search results to summarize |
-
-**SSE events:** `text` (streamed tokens) → `textDone` (full answer + citations) → `done`
-
 ---
 
 Built with [Exa](https://exa.ai) | [API docs](https://docs.exa.ai)
