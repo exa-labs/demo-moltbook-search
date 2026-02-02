@@ -111,10 +111,10 @@ export async function POST(req: NextRequest) {
           numResults: Math.min(numResults, 20),
           text: { maxCharacters: 500 },
           highlights: { numSentences: 5, highlightsPerUrl: 5 },
-          livecrawl: "always",
-          livecrawlTimeout: 5000,
           includeDomains: ["moltbook.com"],
-          max_age_hours: 0,
+          livecrawl: "fallback" as const,
+          livecrawlTimeout: 5000,
+          max_age_hours: 12,
         });
 
         const results: SearchResult[] = exaResult.results
