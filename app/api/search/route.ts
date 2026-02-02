@@ -71,14 +71,23 @@ function sseEvent(event: string, data: Record<string, unknown>): string {
 
 function extractCitations(text: string): number[] {
   const citations = new Set<number>();
-  for (const match of text.matchAll(/\[(\d+)\]/g)) {
-    citations.add(parseInt(match[1], 10));
+  // Match [1], [2], and also [1, 4] or [1,2,3] style
+  for (const match of text.matchAll(/\[(\d+(?:\s*,\s*\d+)*)\]/g)) {
+    for (const num of match[1].split(",")) {
+      const n = parseInt(num.trim(), 10);
+      if (!isNaN(n)) citations.add(n);
+    }
   }
   return Array.from(citations).sort((a, b) => a - b);
 }
 
 function stripCitationMarkers(text: string): string {
-  return text.replace(/\s*\[\d+\]\s*/g, " ").replace(/\s+/g, " ").trim();
+  // Replace citation markers with a space, then also handle comma-separated
+  // citations like [1, 4] or [1,2,3]
+  return text
+    .replace(/\s*\[\d+(?:\s*,\s*\d+)*\]\s*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export async function POST(req: NextRequest) {
@@ -192,7 +201,8 @@ Respond in plain text. End with citation markers like [1] [2].`;
           pendingText += text;
 
           // Hold back partial citation markers at the end
-          const partialMatch = pendingText.match(/\s*\[\d*$/);
+          // Matches: [, [1, [1,, [1, 2, etc.
+          const partialMatch = pendingText.match(/\s*\[\d*(?:\s*,\s*\d*)*$/);
           let textToSend: string;
           if (partialMatch) {
             textToSend = pendingText.slice(0, -partialMatch[0].length);
