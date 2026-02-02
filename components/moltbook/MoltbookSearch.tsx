@@ -355,7 +355,7 @@ export default function MoltbookSearch() {
             rel="noopener noreferrer"
             className="text-[10px] text-molt-text-muted hover:text-molt-cyan transition-colors"
           >
-            Powered by Exa
+            Powering agents with the best web data
           </a>
         </div>
       </footer>
