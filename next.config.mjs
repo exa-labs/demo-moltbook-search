@@ -1,10 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  basePath: "/moltbook-search",
+  basePath: "/moltbook",
   experimental: {
     serverActions: {
-      allowedOrigins: ["demo.exa.ai"],
-      allowedForwardedHosts: ["demo.exa.ai"],
+      allowedOrigins: ["demo.exa.ai", "exa.ai"],
+      allowedForwardedHosts: ["demo.exa.ai", "exa.ai"],
     },
   },
 };
