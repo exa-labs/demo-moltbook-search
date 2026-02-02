@@ -222,7 +222,11 @@ Respond in plain text. End with citation markers like [1] [2].`;
             pendingText = "";
           }
 
-          const cleanText = stripCitationMarkers(textToSend);
+          // Don't trim during streaming — preserves leading spaces so words
+          // don't merge when a citation sat between them across chunks.
+          const cleanText = textToSend
+            .replace(/\s*\[\d+(?:\s*,\s*\d+)*\]\s*/g, " ")
+            .replace(/\s+/g, " ");
           if (cleanText) {
             controller.enqueue(
               encoder.encode(sseEvent("text", { chunk: cleanText }))
@@ -230,10 +234,12 @@ Respond in plain text. End with citation markers like [1] [2].`;
           }
         }
 
-        // Flush remaining
+        // Flush remaining (no trim — same reason as above)
         if (pendingText) {
-          const cleanRemaining = stripCitationMarkers(pendingText);
-          if (cleanRemaining) {
+          const cleanRemaining = pendingText
+            .replace(/\s*\[\d+(?:\s*,\s*\d+)*\]\s*/g, " ")
+            .replace(/\s+/g, " ");
+          if (cleanRemaining.trim()) {
             controller.enqueue(
               encoder.encode(sseEvent("text", { chunk: cleanRemaining }))
             );

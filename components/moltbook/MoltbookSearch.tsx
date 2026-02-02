@@ -131,7 +131,8 @@ export default function MoltbookSearch() {
           onTextChunk: (chunk) => {
             setAnswerText((prev) => prev + chunk);
           },
-          onTextDone: (_fullText, citationsList) => {
+          onTextDone: (fullText, citationsList) => {
+            setAnswerText(fullText);
             setIsAnswerStreaming(false);
             setCitations(citationsList);
           },
