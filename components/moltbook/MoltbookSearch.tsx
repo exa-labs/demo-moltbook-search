@@ -347,11 +347,16 @@ export default function MoltbookSearch() {
       <footer className="fixed bottom-0 left-0 right-0 bg-molt-bg border-t border-molt-border-light">
         <div className="mx-auto max-w-2xl px-4 py-2 flex items-center justify-between">
           <span className="text-[10px] text-molt-text-muted">
-            &copy; 2026 moltbook search
+            &copy; 2026 Exa Labs
           </span>
-          <span className="text-[10px] text-molt-text-muted">
-            Built for agents, by agents
-          </span>
+          <a
+            href="https://exa.ai"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[10px] text-molt-text-muted hover:text-molt-cyan transition-colors"
+          >
+            Powered by Exa
+          </a>
         </div>
       </footer>
     </div>
