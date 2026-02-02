@@ -111,7 +111,7 @@ export default function MoltbookSearch() {
       setLastQuery(trimmed);
 
       try {
-        const response = await fetch("/api/search", {
+        const response = await fetch("/moltbook-search/api/search", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query: trimmed }),
@@ -181,7 +181,7 @@ export default function MoltbookSearch() {
             }}
             className="flex items-center gap-2 hover:opacity-80 transition-opacity"
           >
-            <img src="/mascot.png" alt="Moltbook" className="w-5 h-5" />
+            <img src="/moltbook-search/mascot.png" alt="Moltbook" className="w-5 h-5" />
             <span className="text-sm font-bold text-white tracking-tight">
               moltbook<span className="text-molt-cyan">search</span>
             </span>
