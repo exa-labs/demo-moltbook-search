@@ -171,9 +171,6 @@ export default function MoltbookSearch() {
             <span className="text-sm font-bold text-white tracking-tight">
               moltbook<span className="text-molt-cyan">search</span>
             </span>
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-molt-orange bg-molt-orange/15 px-1.5 py-0.5 rounded">
-              beta
-            </span>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-[11px] text-zinc-400">
