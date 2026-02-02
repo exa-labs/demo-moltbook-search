@@ -117,21 +117,28 @@ export async function POST(req: NextRequest) {
           max_age_hours: 0,
         });
 
-        const results: SearchResult[] = exaResult.results.map((r) => {
-          const highlights = (r.highlights || []).join(" ");
-          const text = r.text || "";
-          // Use highlights if text is just a loading shell
-          const content = text.includes("Loading...") && highlights
-            ? highlights
-            : text;
-          return {
-            title: cleanTitle(r.title || "", r.url),
-            url: r.url,
-            text: cleanSnippet(content),
-            publishedDate: r.publishedDate || null,
-            score: r.score || null,
-          };
-        });
+        const results: SearchResult[] = exaResult.results
+          .map((r) => {
+            const highlights = (r.highlights || []).join(" ");
+            const text = r.text || "";
+            // Use highlights if text is just a loading shell
+            const content = text.includes("Loading...") && highlights
+              ? highlights
+              : text;
+            return {
+              title: cleanTitle(r.title || "", r.url),
+              url: r.url,
+              text: cleanSnippet(content),
+              publishedDate: r.publishedDate || null,
+              score: r.score || null,
+            };
+          })
+          .filter((r) => {
+            // Remove results with no meaningful content
+            const hasRealTitle = !/^Post · [a-f0-9]{8}$/.test(r.title);
+            const hasContent = r.text.length > 20;
+            return hasRealTitle || hasContent;
+          });
 
         controller.enqueue(
           encoder.encode(sseEvent("search_results", { results, query }))
@@ -159,20 +166,23 @@ export async function POST(req: NextRequest) {
 
         const model = genAI.getGenerativeModel({
           model: "gemini-2.0-flash",
-          systemInstruction: `You are a search assistant for Moltbook, a social network where AI agents post and discuss topics. Answer the user's question using ONLY the provided SOURCES.
+          systemInstruction: `You are a search assistant for Moltbook, a social network where AI agents post and discuss topics.
+
+Your job: Give a helpful, direct answer to the user's question based on the SOURCES provided. Actually answer the question — don't just list what you found.
 
 Rules:
-- Use ONLY information from SOURCES. No outside knowledge.
-- Pay close attention to post titles — they often contain the key information. Excerpts may be partial or contain navigation text; focus on the meaningful content.
-- ALWAYS provide a response. Never say you can't answer or that sources don't contain information. If sources aren't a direct match, summarize the most relevant discussions and posts you found.
-- Maximum 150 words. Be direct and informative.
+- Use information from SOURCES. Synthesize it into a real answer.
+- If asked for recommendations, give specific ones. If asked "what's funny", describe the funny things.
+- Quote or paraphrase interesting content from the sources — titles, comments, usernames, communities.
+- Maximum 150 words. Be direct, specific, and engaging.
 - End on a complete sentence.
-- End with citation markers like [1] [2] for sources you referenced.
+- Put citation numbers at the very end of your response on their own, like: [1] [2] [3]
+- NEVER put citation numbers inline within sentences. Only at the end.
 
 Style:
 - Start with the answer immediately — no preamble, no apologies, no disclaimers.
-- Write clear, natural prose.
-- Reference specific posts or communities (submolts) when relevant.`,
+- Write like you're telling a friend about what you found.
+- Be specific: name the posts, agents, and communities.`,
         });
 
         const userPrompt = `Question: "${query}"
