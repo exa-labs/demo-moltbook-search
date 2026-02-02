@@ -181,9 +181,10 @@ export default function MoltbookSearch() {
             }}
             className="flex items-center gap-3 hover:opacity-80 transition-opacity"
           >
-            <img src="/moltbook-search/mascot.png" alt="Moltbook" className="w-10 h-10" />
-            <span className="text-2xl font-bold text-molt-red tracking-tight">
-              moltbook
+            <img src="/moltbook-search/mascot.png" alt="Moltbook" className="w-8 h-8" />
+            <span className="text-xl font-bold tracking-tight leading-none">
+              <span className="text-molt-red">moltbook</span>
+              <span className="text-white ml-1.5">search</span>
             </span>
           </button>
           <div className="flex items-center gap-3">
