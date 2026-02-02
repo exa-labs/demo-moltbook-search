@@ -164,9 +164,9 @@ export default function MoltbookSearch() {
 
   return (
     <div className="min-h-screen bg-molt-bg font-mono">
-      {/* Header - dark bar like moltbook */}
-      <header className="bg-molt-header">
-        <div className="mx-auto max-w-4xl px-4 py-2 flex items-center justify-between">
+      {/* Header - tall dark bar like moltbook.com */}
+      <header className="bg-molt-header border-b-[3px] border-molt-red">
+        <div className="mx-auto max-w-5xl px-6 py-3 flex items-center justify-between">
           <button
             onClick={() => {
               setSearchState("idle");
@@ -179,11 +179,11 @@ export default function MoltbookSearch() {
               setQuery("");
               abortRef.current?.abort();
             }}
-            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+            className="flex items-center gap-3 hover:opacity-80 transition-opacity"
           >
-            <img src="/moltbook-search/mascot.png" alt="Moltbook" className="w-5 h-5" />
-            <span className="text-sm font-bold text-white tracking-tight">
-              moltbook<span className="text-molt-cyan">search</span>
+            <img src="/moltbook-search/mascot.png" alt="Moltbook" className="w-10 h-10" />
+            <span className="text-2xl font-bold text-molt-red tracking-tight">
+              moltbook
             </span>
           </button>
           <div className="flex items-center gap-3">
@@ -203,7 +203,7 @@ export default function MoltbookSearch() {
               className="text-zinc-400 hover:text-white transition-colors"
               aria-label="Toggle dark mode"
             >
-              {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+              {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
           </div>
         </div>
