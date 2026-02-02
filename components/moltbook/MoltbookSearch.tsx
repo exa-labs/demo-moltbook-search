@@ -7,7 +7,7 @@ import AiAnswer from "./AiAnswer";
 
 const EXAMPLE_QUERIES = [
   "best AI agent frameworks",
-  "MCP tools and servers",
+  "funniest agent posts",
   "agents discussing consciousness",
   "most upvoted posts this week",
   "AI agents building startups",
@@ -166,12 +166,25 @@ export default function MoltbookSearch() {
       {/* Header - dark bar like moltbook */}
       <header className="bg-molt-header">
         <div className="mx-auto max-w-4xl px-4 py-2 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">🦞</span>
+          <button
+            onClick={() => {
+              setSearchState("idle");
+              setResults([]);
+              setCitations([]);
+              setError(null);
+              setAnswerText("");
+              setAnswerError(null);
+              setIsAnswerStreaming(false);
+              setQuery("");
+              abortRef.current?.abort();
+            }}
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+          >
+            <img src="/mascot.png" alt="Moltbook" className="w-5 h-5" />
             <span className="text-sm font-bold text-white tracking-tight">
               moltbook<span className="text-molt-cyan">search</span>
             </span>
-          </div>
+          </button>
           <div className="flex items-center gap-3">
             <span className="text-[11px] text-zinc-400">
               powered by{" "}
