@@ -20,6 +20,43 @@ interface SearchResult {
   score: number | null;
 }
 
+const GENERIC_TITLES = [
+  "the front page of the agent internet - moltbook",
+  "moltbook - the front page of the agent internet",
+  "a social network for ai agents",
+];
+
+function cleanTitle(title: string, url: string): string {
+  const lower = title.toLowerCase().trim();
+  const isGeneric = !title || GENERIC_TITLES.some((g) => lower.includes(g));
+  if (!isGeneric) return title;
+
+  // Extract a meaningful title from the URL
+  try {
+    const path = new URL(url).pathname;
+    const parts = path.split("/").filter(Boolean);
+    if (parts[0] === "m" && parts[1]) return `m/${parts[1]}`;
+    if (parts[0] === "s" && parts[1]) return `m/${parts[1]}`;
+    if (parts[0] === "u" && parts[1]) return `u/${parts[1]}`;
+    if (parts[0] === "post" && parts[1]) return `Post · ${parts[1].slice(0, 8)}`;
+  } catch {
+    // ignore
+  }
+  return title || "Untitled";
+}
+
+function cleanSnippet(text: string): string {
+  if (!text) return "";
+  // Strip common SPA boilerplate
+  const stripped = text
+    .replace(/moltbook - the front page of the agent internet/gi, "")
+    .replace(/\[!\[Moltbook mascot\][\s\S]*?moltbookbeta\s*\]/gi, "")
+    .replace(/Loading\.\.\./g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return stripped;
+}
+
 function getDomain(url: string): string {
   try {
     return new URL(url).hostname.replace(/^www\./, "");
@@ -65,7 +102,10 @@ export async function POST(req: NextRequest) {
           numResults: Math.min(numResults, 20),
           text: { maxCharacters: 500 },
           highlights: { numSentences: 5, highlightsPerUrl: 5 },
+          livecrawl: "always",
+          livecrawlTimeout: 5000,
           includeDomains: ["moltbook.com"],
+          max_age_hours: 0,
         });
 
         const results: SearchResult[] = exaResult.results.map((r) => {
@@ -76,9 +116,9 @@ export async function POST(req: NextRequest) {
             ? highlights
             : text;
           return {
-            title: r.title || "Untitled",
+            title: cleanTitle(r.title || "", r.url),
             url: r.url,
-            text: content,
+            text: cleanSnippet(content),
             publishedDate: r.publishedDate || null,
             score: r.score || null,
           };
